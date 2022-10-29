@@ -14,6 +14,7 @@
 """Perform assembly based on debruijn graph."""
 
 import argparse
+from importlib.resources import path
 import os
 import sys
 import networkx as nx
@@ -27,9 +28,9 @@ import textwrap
 import matplotlib.pyplot as plt
 matplotlib.use("Agg")
 
-__author__ = "Your Name"
+__author__ = "Insaf"
 __copyright__ = "Universite Paris Diderot"
-__credits__ = ["Your Name"]
+__credits__ = ["Insaf"]
 __license__ = "GPL"
 __version__ = "1.0.0"
 __maintainer__ = "Your Name"
@@ -71,27 +72,76 @@ def get_arguments():
 
 
 def read_fastq(fastq_file):
-    pass
+    with open (fastq_file, "r") as f :
+        content = f.readline()
+        for i in range(1,len(content),4) :
+            yield content[i].rstrip()
+
 
 
 def cut_kmer(read, kmer_size):
-    pass
+    for i in range (len(read)-kmer_size+1) :
+        yield read[i:i+kmer_size]
+    
 
 
 def build_kmer_dict(fastq_file, kmer_size):
-    pass
+    kmer_dict = {}
+    for i in read_fastq(fastq_file ) :
+        for j in cut_kmer(i, kmer_size) :
+            if j not in kmer_dict :
+                kmer_dict[j] = kmer_dict.get(j , 1)
+            else :
+                kmer_dict[j] +=1
+    return dict
 
 
 def build_graph(kmer_dict):
-    pass
+    graph = nx.DiGraph()
+    for i in kmer_dict :
+        if i+1 > len(kmer_dict) :
+            break
+        graph.add_edge(i[:-1], i[1:], weight=kmer_dict[i])
+    return graph
+
+
+def get_starting_nodes(graph):
+    starting_nodes = []
+    for node in list(graph.nodes()):
+        if len(list(graph.predecessors(node))) == 0:
+            starting_nodes.append(node)
+    return starting_nodes
+
+
+def get_sink_nodes(graph):
+    sinking_nodes = []
+    for node in list(graph.nodes()):
+        if len(list(graph.successors(node))) == 0:
+            sinking_nodes.append(node)
+    return sinking_nodes
 
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
-    pass
+    for path in path_list:
+        if delete_entry_node and not delete_sink_node:
+            graph.remove_nodes_from(path[:-1])
+        elif not delete_entry_node and delete_sink_node:
+            graph.remove_nodes_from(path[1:])
+        elif delete_entry_node and delete_sink_node:
+            graph.remove_nodes_from(path)
+        else:
+            graph.remove_nodes_from(path[1:-1])
+        
+    return graph
 
+def std(data):
+    return statistics.stdev(data)
 
 def select_best_path(graph, path_list, path_length, weight_avg_list, 
                      delete_entry_node=False, delete_sink_node=False):
+    std_weight = std(weight_avg_list)
+    if std_weight > 0 :
+        del path_list[weight_avg_list.index(max(weight_avg_list))]
     pass
 
 def path_average_weight(graph, path):
@@ -99,9 +149,29 @@ def path_average_weight(graph, path):
     return statistics.mean([d["weight"] for (u, v, d) in graph.subgraph(path).edges(data=True)])
 
 def solve_bubble(graph, ancestor_node, descendant_node):
-    pass
+    all_paths = list(nx.all_simple_paths(graph,ancestor_node, descendant_node))
+    weights = []
+    lengths = []
+    for path in all_paths:
+        weights.append(path_average_weight(graph, path))
+        lengths.append(len(path))
+    return select_best_path(graph, all_paths, lengths, weights)
+    
 
 def simplify_bubbles(graph):
+      bubble = False
+    for node in digraph:
+        predecessor_node_list = list(nx.predecessors(digraph, node))
+        if len(predecessor_node_list) > 1:
+            for predecessor in predecessor_node_list:
+                predecessor_node = nx.lowest_common_ancestor(digraph, predecessor, node)
+                if predecessor_node != None:
+                    bubble = True
+                    break
+            if bubble == True:
+                digraph = simplify_bubbles(solve_bubble(digraph, predecessor_node, node))
+                break
+    return digraph
     pass
 
 def solve_entry_tips(graph, starting_nodes):
